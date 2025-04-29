@@ -4,24 +4,27 @@ USE Inbentarioa;
 -- 1. Tablas independientes (sin claves foráneas)
 CREATE TABLE Mintegiak (
     ID_Mintegia INT AUTO_INCREMENT PRIMARY KEY,
-    Izena VARCHAR(20) NOT NULL,
+    Izena VARCHAR(60) NOT NULL,
     Kokapena VARCHAR(20) NOT NULL
 );
 
 CREATE TABLE Erabiltzaileak (
     ID_Erabiltzaileak INT AUTO_INCREMENT PRIMARY KEY,
-    Izena VARCHAR(20) NOT NULL,
+    Izena VARCHAR(100) NOT NULL,
     Errola VARCHAR(20) NOT NULL,
     ErabiltzaileIzena VARCHAR(20) NOT NULL DEFAULT 'defaultUser'
 );
+USE Inbentarioa;
+ALTER TABLE Erabiltzaileak
+ADD ErabiltzailePasahitza VARCHAR(55) NOT NULL;
 
 -- 2. Tabla principal Gailuak (referenciada por otras)
 CREATE TABLE Gailuak (
     ID_Gailuak INT PRIMARY KEY AUTO_INCREMENT,
     Gailu_Mota ENUM('Ordenagailuak', 'Imprimagailuak', 'BesteGailuak') NOT NULL,
     ID_Mintegia INT,
-    Marka VARCHAR(20) NOT NULL,
-    Modeloa VARCHAR(20) NOT NULL,
+    Marka VARCHAR(50) NOT NULL,
+    Modeloa VARCHAR(50) NOT NULL,
     Erosketa_data DATETIME NOT NULL,
     EzabatzekoMarka BOOLEAN NOT NULL DEFAULT 0,
     EgoeraGailua ENUM('Ongi', 'Apurtuta') NOT NULL DEFAULT 'Ongi',
@@ -30,7 +33,7 @@ CREATE TABLE Gailuak (
 
 
 -- 'Kompontzen' aukerab gehtzeko opzioa
-USE inbentarioa; 
+USE Inbentarioa; 
 ALTER TABLE Gailuak 
 MODIFY COLUMN EgoeraGailua ENUM('Ongi', 'Apurtuta', 'Kompontzen') 
 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci 
@@ -54,7 +57,7 @@ CREATE TABLE Ordenagailuak (
     USB_Portuak INT NOT NULL,
     Marka VARCHAR(20) NOT NULL,
     Modeloa VARCHAR(40) NOT NULL,
-    Izena VARCHAR(20) NOT NULL DEFAULT 'Ordenagailuak',
+    Izena VARCHAR(40) NOT NULL DEFAULT 'Ordenagailuak',
     FOREIGN KEY (ID_Gailuak) REFERENCES Gailuak(ID_Gailuak) ON DELETE CASCADE,
     CHECK (Izena = 'Ordenagailuak')
 );
@@ -62,7 +65,7 @@ CREATE TABLE Ordenagailuak (
 
 CREATE TABLE Imprimagailuak (
     ID_Gailuak INT PRIMARY KEY,
-    Izena VARCHAR(20) NOT NULL DEFAULT 'Imprimagailuak',
+    Izena VARCHAR(40) NOT NULL DEFAULT 'Imprimagailuak',
     Marka VARCHAR(40) NOT NULL,
     Modeloa VARCHAR(40) NOT NULL,
     FOREIGN KEY (ID_Gailuak) REFERENCES Gailuak(ID_Gailuak),
@@ -78,4 +81,23 @@ CREATE TABLE BesteGailuak (
     CHECK (Izena = 'BesteGailuak')
 );
 
+---------------------TRIGER------------------------------------
 
+DELIMITER //
+
+CREATE TRIGGER Trig_EzabatuEtaKendu
+AFTER UPDATE ON Gailuak
+FOR EACH ROW
+BEGIN
+    -- Comprobar si EzabatzekoMarka ha cambiado a 1
+    IF NEW.EzabatzekoMarka = 1 AND OLD.EzabatzekoMarka = 0 THEN
+        -- Insertar en EzabatutakoGailuak
+        INSERT INTO EzabatutakoGailuak (ID_Gailuak, Data_Ezabatu, Marka, Modeloa)
+        VALUES (NEW.ID_Gailuak, NOW(), NEW.Marka, NEW.Modeloa);
+
+        -- Eliminar de Gailuak (lo que provocará ON DELETE CASCADE en las tablas hijas)
+        DELETE FROM Gailuak WHERE ID_Gailuak = NEW.ID_Gailuak;
+    END IF;
+END //
+
+DELIMITER ;
